@@ -94,7 +94,7 @@ if "username" not in st.session_state:
                     st.session_state.username = login_user.strip()
                     st.rerun()
         
-        # [추가됨] 비밀번호 찾기 (계정 초기화)
+        # [수정됨] 비밀번호 찾기 (계정 초기화)
         with st.expander("🔑 비밀번호를 잊으셨나요? (계정 초기화)"):
             st.warning("⚠️ 주의: 계정을 초기화하면 기존 기록이 모두 삭제됩니다.")
             reset_user = st.text_input("초기화할 요원명 입력")
@@ -102,7 +102,9 @@ if "username" not in st.session_state:
                 if reset_user in db:
                     del db[reset_user]
                     save_db(db)
-                    st.success("계정이 삭제되었습니다. 이제 '회원가입' 탭에서 다시 시작하세요!")
+                    st.success("계정이 삭제되었습니다. 잠시 후 새로고침 됩니다.")
+                    time.sleep(1)
+                    st.rerun() # <--- 여기서 페이지를 새로고침해서 DB를 깨끗하게 비웁니다!
                 else:
                     st.error("존재하지 않는 요원명입니다.")
 
@@ -126,7 +128,7 @@ if "username" not in st.session_state:
 
     st.stop()
 
-# 이후 코드는 동일...
+# 로그인 성공 후 화면
 user = st.session_state.username
 user_data = db[user]
 
