@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import json
+import time  # ⏱️ 동시 접속 충돌 방지를 위해 추가된 모듈
 
 # 1. 페이지 기본 설정
 st.set_page_config(
@@ -11,15 +12,40 @@ st.set_page_config(
 
 DB_FILE = "mission_db.json"
 
+# ---------------------------------------------------------
+# 💡 업그레이드된 데이터베이스 함수 (동시 접속 충돌 방지)
+# ---------------------------------------------------------
 def load_db():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+    # 파일이 꼬였을 때를 대비해 최대 5번 재시도 (줄서기 기능)
+    for _ in range(5):
+        try:
+            if os.path.exists(DB_FILE):
+                with open(DB_FILE, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            return {}
+        except Exception:
+            time.sleep(0.1) # 충돌 나면 0.1초 쉬고 다시 읽기 시도
     return {}
 
-def save_db(db):
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(db, f, ensure_ascii=False, indent=4)
+def save_db(db_to_save):
+    for _ in range(5):
+        try:
+            # 1. 공책(파일)의 최신 상태를 먼저 읽어옴 (남의 기록 날아가지 않게)
+            current_db = {}
+            if os.path.exists(DB_FILE):
+                with open(DB_FILE, "r", encoding="utf-8") as f:
+                    current_db = json.load(f)
+            
+            # 2. 방금 미션을 깬 '내 데이터'만 최신 공책에 살짝 추가(병합)
+            for k, v in db_to_save.items():
+                current_db[k] = v
+                
+            # 3. 안전하게 덮어쓰기
+            with open(DB_FILE, "w", encoding="utf-8") as f:
+                json.dump(current_db, f, ensure_ascii=False, indent=4)
+            break # 성공하면 반복문 탈출!
+        except Exception:
+            time.sleep(0.1) # 누가 쓰고 있어서 충돌나면 0.1초 대기 후 다시 시도
 
 # 커스텀 스타일링
 st.markdown("""
@@ -160,7 +186,7 @@ st.write(f"**지방청 아치 수집도:** {level} / 4")
 st.progress(level / 4)
 
 # ---------------------------------------------------------
-# 배포된 진짜 인터넷 주소로 완벽히 고정!
+# 배포된 진짜 인터넷 주소
 # ---------------------------------------------------------
 base_url = "https://haeyangicc-naae9czhnhbfv4f2hwb2yt.streamlit.app"
 
