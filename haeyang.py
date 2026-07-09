@@ -13,7 +13,7 @@ st.set_page_config(
 DB_FILE = "mission_db.json"
 
 # ---------------------------------------------------------
-# 데이터베이스 함수 (동시 접속 충돌 방지)
+# 데이터베이스 함수
 # ---------------------------------------------------------
 def load_db():
     for _ in range(5):
@@ -48,40 +48,10 @@ st.markdown("""
     <style>
     .block-container { padding-top: 2rem; max-width: 450px; }
     .stButton>button { width: 100%; border-radius: 20px; }
-    .level-badge {
-        background-color: #005ea2;
-        color: white;
-        padding: 8px 24px;
-        border-radius: 50px;
-        font-weight: 800;
-        font-size: 1.6rem;
-        display: inline-block;
-        box-shadow: 0 4px 10px rgba(0, 94, 162, 0.3);
-        margin-bottom: 10px;
-    }
-    .seacret-badge {
-        background-color: #ffd700;
-        color: #111111;
-        padding: 10px 30px;
-        border-radius: 50px;
-        font-weight: 900;
-        font-size: 1.8rem;
-        display: inline-block;
-        box-shadow: 0 4px 20px rgba(255, 215, 0, 0.6);
-    }
-    .character-box {
-        border-radius: 20px;
-        padding: 15px;
-        text-align: center;
-        margin-bottom: 15px;
-    }
-    .seacret-text {
-        font-size: 1.7rem;
-        font-weight: bold;
-        color: #ffd700;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        margin-top: 15px;
-    }
+    .level-badge { background-color: #005ea2; color: white; padding: 8px 24px; border-radius: 50px; font-weight: 800; font-size: 1.6rem; display: inline-block; box-shadow: 0 4px 10px rgba(0, 94, 162, 0.3); margin-bottom: 10px; }
+    .seacret-badge { background-color: #ffd700; color: #111111; padding: 10px 30px; border-radius: 50px; font-weight: 900; font-size: 1.8rem; display: inline-block; box-shadow: 0 4px 20px rgba(255, 215, 0, 0.6); }
+    .character-box { border-radius: 20px; padding: 15px; text-align: center; margin-bottom: 15px; }
+    .seacret-text { font-size: 1.7rem; font-weight: bold; color: #ffd700; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); margin-top: 15px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -100,16 +70,14 @@ if "scan" in st.query_params:
     st.query_params.clear()
 
 # ---------------------------------------------------------
-# 🔒 회원가입 / 로그인 탭 분리 적용
+# 로그인 / 회원가입 화면
 # ---------------------------------------------------------
 if "username" not in st.session_state:
     st.title("🕵️‍♂️ 해양경찰청 요원 인증")
     st.write("미션 수행을 위해 먼저 로그인을 해주세요!")
     
-    # 두 개의 탭으로 분리
-    tab1, tab2 = st.tabs(["🔑 로그인 (기존 요원)", "📝 회원가입 (신규 요원)"])
+    tab1, tab2 = st.tabs(["🔑 로그인", "📝 회원가입"])
     
-    # --- [탭 1] 로그인 화면 ---
     with tab1:
         with st.form("login_form"):
             st.subheader("로그인")
@@ -118,17 +86,26 @@ if "username" not in st.session_state:
             login_submit = st.form_submit_button("접속하기")
             
             if login_submit:
-                if login_user.strip() == "" or login_pw.strip() == "":
-                    st.error("요원명과 비밀번호를 모두 입력해주세요!")
-                elif login_user.strip() not in db:
-                    st.error("등록되지 않은 요원명입니다. 옆의 '회원가입' 탭을 이용해주세요!")
+                if login_user.strip() not in db:
+                    st.error("등록되지 않은 요원명입니다.")
                 elif db[login_user.strip()].get("password") != login_pw.strip():
-                    st.error("🚫 비밀번호가 틀렸습니다! 다시 확인해주세요.")
+                    st.error("🚫 비밀번호가 틀렸습니다!")
                 else:
                     st.session_state.username = login_user.strip()
                     st.rerun()
+        
+        # [추가됨] 비밀번호 찾기 (계정 초기화)
+        with st.expander("🔑 비밀번호를 잊으셨나요? (계정 초기화)"):
+            st.warning("⚠️ 주의: 계정을 초기화하면 기존 기록이 모두 삭제됩니다.")
+            reset_user = st.text_input("초기화할 요원명 입력")
+            if st.button("계정 삭제 및 초기화"):
+                if reset_user in db:
+                    del db[reset_user]
+                    save_db(db)
+                    st.success("계정이 삭제되었습니다. 이제 '회원가입' 탭에서 다시 시작하세요!")
+                else:
+                    st.error("존재하지 않는 요원명입니다.")
 
-    # --- [탭 2] 회원가입 화면 ---
     with tab2:
         with st.form("signup_form"):
             st.subheader("신규 요원 등록")
@@ -137,19 +114,19 @@ if "username" not in st.session_state:
             signup_submit = st.form_submit_button("가입하기")
             
             if signup_submit:
-                if new_user.strip() == "" or new_pw.strip() == "":
-                    st.error("요원명과 비밀번호를 모두 입력해주세요!")
-                elif new_user.strip() in db:
-                    st.error("⚠️ 이미 누군가 사용 중인 요원명입니다! 다른 이름을 정해주세요.")
+                if new_user.strip() in db:
+                    st.error("⚠️ 이미 누군가 사용 중인 요원명입니다!")
+                elif new_user.strip() == "":
+                    st.error("요원명을 입력해주세요.")
                 else:
                     user = new_user.strip()
                     db[user] = {"password": new_pw.strip(), "visited": [], "is_secret_agent": False}
                     save_db(db)
-                    st.success(f"🎉 가입 완료! '{user}' 요원님, 이제 왼쪽 '로그인' 탭에서 접속해주세요!")
+                    st.success(f"🎉 가입 완료! '{user}' 요원님, 로그인 탭에서 접속해주세요!")
 
     st.stop()
 
-# 로그인 성공 후 화면
+# 이후 코드는 동일...
 user = st.session_state.username
 user_data = db[user]
 
@@ -212,19 +189,15 @@ st.divider()
 st.write(f"**지방청 아치 수집도:** {level} / 4")
 st.progress(level / 4)
 
-# 배포된 진짜 인터넷 주소
 base_url = "https://haeyangicc-naae9czhnhbfv4f2hwb2yt.streamlit.app"
 
 st.divider()
 st.subheader("🏠 메인 화면 접속 QR (친구 초대용)")
-st.write("누구든 이 QR 코드를 스캔하면 '요원명 입력 화면'으로 들어옵니다.")
 main_qr_api = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={base_url}"
 st.image(main_qr_api, width=200)
 
 st.divider()
 st.subheader("[테스트용] 탐방 시뮬레이터")
-st.write(f"📢 **현재 연결된 공식 서버 주소:** `{base_url}`")
-st.write("### 1단계: 4대 지방청 아치 모으기")
 cols_sim = st.columns(2)
 for i, hq in enumerate(main_hqs):
     with cols_sim[i % 2]:
@@ -239,7 +212,7 @@ is_jeju_ready = (level == 4)
 if user_data["is_secret_agent"]:
     st.success("🕵️‍♂️ 미션 컴플리트!")
 else:
-    st.markdown(f"**제주지방청 최종장 {'🔓 스캔 가능' if is_jeju_ready else '🔒 잠김 (앞의 4곳 수집 필요)'}**")
+    st.markdown(f"**제주지방청 최종장 {'🔓 스캔 가능' if is_jeju_ready else '🔒 잠김'}**")
     jeju_qr_url = f"{base_url}/?scan=jeju_hq"
     jeju_qr_api = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={jeju_qr_url}"
     st.image(jeju_qr_api, width=120)
@@ -247,11 +220,11 @@ else:
 st.divider()
 cols_footer = st.columns(2)
 with cols_footer[0]:
-    if st.button("🚪 다른 요원으로 로그인 (로그아웃)"):
+    if st.button("🚪 로그아웃"):
         del st.session_state.username
         st.rerun()
 with cols_footer[1]:
     if st.button("🗑️ 내 기록 전체 삭제"):
-        db[user] = {"visited": [], "is_secret_agent": False}
+        db[user] = {"password": db[user]["password"], "visited": [], "is_secret_agent": False}
         save_db(db)
         st.rerun()
