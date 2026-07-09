@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 import json
-import time  # ⏱️ 동시 접속 충돌 방지를 위해 추가된 모듈
+import time
 
 # 1. 페이지 기본 설정
 st.set_page_config(
@@ -13,10 +13,9 @@ st.set_page_config(
 DB_FILE = "mission_db.json"
 
 # ---------------------------------------------------------
-# 💡 업그레이드된 데이터베이스 함수 (동시 접속 충돌 방지)
+# 데이터베이스 함수 (동시 접속 충돌 방지)
 # ---------------------------------------------------------
 def load_db():
-    # 파일이 꼬였을 때를 대비해 최대 5번 재시도 (줄서기 기능)
     for _ in range(5):
         try:
             if os.path.exists(DB_FILE):
@@ -24,28 +23,25 @@ def load_db():
                     return json.load(f)
             return {}
         except Exception:
-            time.sleep(0.1) # 충돌 나면 0.1초 쉬고 다시 읽기 시도
+            time.sleep(0.1)
     return {}
 
 def save_db(db_to_save):
     for _ in range(5):
         try:
-            # 1. 공책(파일)의 최신 상태를 먼저 읽어옴 (남의 기록 날아가지 않게)
             current_db = {}
             if os.path.exists(DB_FILE):
                 with open(DB_FILE, "r", encoding="utf-8") as f:
                     current_db = json.load(f)
             
-            # 2. 방금 미션을 깬 '내 데이터'만 최신 공책에 살짝 추가(병합)
             for k, v in db_to_save.items():
                 current_db[k] = v
                 
-            # 3. 안전하게 덮어쓰기
             with open(DB_FILE, "w", encoding="utf-8") as f:
                 json.dump(current_db, f, ensure_ascii=False, indent=4)
-            break # 성공하면 반복문 탈출!
+            break
         except Exception:
-            time.sleep(0.1) # 누가 쓰고 있어서 충돌나면 0.1초 대기 후 다시 시도
+            time.sleep(0.1)
 
 # 커스텀 스타일링
 st.markdown("""
@@ -103,26 +99,50 @@ if "scan" in st.query_params:
     st.session_state.pending_scan = st.query_params["scan"]
     st.query_params.clear()
 
+# ---------------------------------------------------------
+# 🔒 비밀번호가 추가된 로그인 화면
+# ---------------------------------------------------------
 if "username" not in st.session_state:
     st.title("🕵️‍♂️ 해양경찰청 요원 인증")
-    st.write("QR 스캔 내역을 누적하기 위해 고유 요원명을 입력하세요.")
+    st.write("보안을 위해 요원명과 비밀번호를 입력해주세요.")
     
     with st.form("login_form"):
         username_input = st.text_input("요원명 (예: 아치대장)")
+        password_input = st.text_input("비밀번호 (숫자나 영문)", type="password") # 비밀번호 가림 처리
         submitted = st.form_submit_button("인증하고 접속하기")
         
         if submitted:
-            if username_input.strip() == "":
-                st.error("요원명을 입력해주세요!")
+            if username_input.strip() == "" or password_input.strip() == "":
+                st.error("요원명과 비밀번호를 모두 입력해주세요!")
             else:
                 user = username_input.strip()
-                st.session_state.username = user
+                pw = password_input.strip()
+                
+                # 1. 아예 처음 접속하는 신규 요원인 경우 (가입)
                 if user not in db:
-                    db[user] = {"visited": [], "is_secret_agent": False}
+                    db[user] = {"password": pw, "visited": [], "is_secret_agent": False}
                     save_db(db)
-                st.rerun()
+                    st.success(f"환영합니다! '{user}' 요원님의 계정이 생성되었습니다.")
+                    time.sleep(1) # 성공 메시지를 1초 보여주고 넘어감
+                    st.session_state.username = user
+                    st.rerun()
+                    
+                # 2. 이미 등록된 기존 요원인 경우 (로그인)
+                else:
+                    # (예외 처리) 예전에 비밀번호 없이 만든 계정이라면, 지금 입력한 비번으로 설정해줌
+                    if "password" not in db[user]:
+                        db[user]["password"] = pw
+                        save_db(db)
+                        
+                    # 비밀번호 일치 확인
+                    if db[user]["password"] == pw:
+                        st.session_state.username = user
+                        st.rerun()
+                    else:
+                        st.error("🚫 비밀번호가 틀렸습니다! 다시 확인해주세요.")
     st.stop()
 
+# 로그인 성공 후 화면
 user = st.session_state.username
 user_data = db[user]
 
@@ -185,9 +205,7 @@ st.divider()
 st.write(f"**지방청 아치 수집도:** {level} / 4")
 st.progress(level / 4)
 
-# ---------------------------------------------------------
 # 배포된 진짜 인터넷 주소
-# ---------------------------------------------------------
 base_url = "https://haeyangicc-naae9czhnhbfv4f2hwb2yt.streamlit.app"
 
 st.divider()
