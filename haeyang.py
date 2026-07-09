@@ -16,32 +16,16 @@ DB_FILE = "mission_db.json"
 # 데이터베이스 함수
 # ---------------------------------------------------------
 def load_db():
-    for _ in range(5):
-        try:
-            if os.path.exists(DB_FILE):
-                with open(DB_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            return {}
-        except Exception:
-            time.sleep(0.1)
+    # 파일 상태를 확실히 하기 위해 매번 새로 읽기
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
     return {}
 
 def save_db(db_to_save):
-    for _ in range(5):
-        try:
-            current_db = {}
-            if os.path.exists(DB_FILE):
-                with open(DB_FILE, "r", encoding="utf-8") as f:
-                    current_db = json.load(f)
-            
-            for k, v in db_to_save.items():
-                current_db[k] = v
-                
-            with open(DB_FILE, "w", encoding="utf-8") as f:
-                json.dump(current_db, f, ensure_ascii=False, indent=4)
-            break
-        except Exception:
-            time.sleep(0.1)
+    # 파일 저장 후 확실하게 파일 시스템에 반영되도록 처리
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(db_to_save, f, ensure_ascii=False, indent=4)
 
 # 커스텀 스타일링
 st.markdown("""
@@ -94,7 +78,6 @@ if "username" not in st.session_state:
                     st.session_state.username = login_user.strip()
                     st.rerun()
         
-        # [수정됨] 비밀번호 찾기 (계정 초기화)
         with st.expander("🔑 비밀번호를 잊으셨나요? (계정 초기화)"):
             st.warning("⚠️ 주의: 계정을 초기화하면 기존 기록이 모두 삭제됩니다.")
             reset_user = st.text_input("초기화할 요원명 입력")
@@ -103,8 +86,8 @@ if "username" not in st.session_state:
                     del db[reset_user]
                     save_db(db)
                     st.success("계정이 삭제되었습니다. 잠시 후 새로고침 됩니다.")
-                    time.sleep(1)
-                    st.rerun() # <--- 여기서 페이지를 새로고침해서 DB를 깨끗하게 비웁니다!
+                    time.sleep(0.5) # 안전하게 저장될 시간 대기
+                    st.rerun() 
                 else:
                     st.error("존재하지 않는 요원명입니다.")
 
