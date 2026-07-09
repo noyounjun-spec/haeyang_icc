@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import json
 import time
+from urllib.parse import quote # QR 링크 오류 방지를 위한 인코딩 모듈
 
 # 1. 페이지 기본 설정
 st.set_page_config(
@@ -13,19 +14,35 @@ st.set_page_config(
 DB_FILE = "mission_db.json"
 
 # ---------------------------------------------------------
-# 데이터베이스 함수
+# 데이터베이스 함수 (동시 접속 충돌 방지)
 # ---------------------------------------------------------
 def load_db():
-    # 파일 상태를 확실히 하기 위해 매번 새로 읽기
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+    for _ in range(5):
+        try:
+            if os.path.exists(DB_FILE):
+                with open(DB_FILE, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            return {}
+        except Exception:
+            time.sleep(0.1)
     return {}
 
 def save_db(db_to_save):
-    # 파일 저장 후 확실하게 파일 시스템에 반영되도록 처리
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(db_to_save, f, ensure_ascii=False, indent=4)
+    for _ in range(5):
+        try:
+            current_db = {}
+            if os.path.exists(DB_FILE):
+                with open(DB_FILE, "r", encoding="utf-8") as f:
+                    current_db = json.load(f)
+            
+            for k, v in db_to_save.items():
+                current_db[k] = v
+                
+            with open(DB_FILE, "w", encoding="utf-8") as f:
+                json.dump(current_db, f, ensure_ascii=False, indent=4)
+            break
+        except Exception:
+            time.sleep(0.1)
 
 # 커스텀 스타일링
 st.markdown("""
@@ -86,8 +103,8 @@ if "username" not in st.session_state:
                     del db[reset_user]
                     save_db(db)
                     st.success("계정이 삭제되었습니다. 잠시 후 새로고침 됩니다.")
-                    time.sleep(0.5) # 안전하게 저장될 시간 대기
-                    st.rerun() 
+                    time.sleep(0.5)
+                    st.rerun()
                 else:
                     st.error("존재하지 않는 요원명입니다.")
 
@@ -178,7 +195,8 @@ base_url = "https://haeyangicc-naae9czhnhbfv4f2hwb2yt.streamlit.app"
 
 st.divider()
 st.subheader("🏠 메인 화면 접속 QR (친구 초대용)")
-main_qr_api = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={base_url}"
+encoded_base_url = quote(base_url, safe='')
+main_qr_api = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={encoded_base_url}"
 st.image(main_qr_api, width=200)
 
 st.divider()
@@ -189,7 +207,8 @@ for i, hq in enumerate(main_hqs):
         is_done = hq in user_data["visited"]
         st.markdown(f"**{hq_info[hq]['name']} {'✅' if is_done else '⭕'}**")
         qr_url = f"{base_url}/?scan={hq}"
-        qr_api = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={qr_url}"
+        encoded_qr_url = quote(qr_url, safe='')
+        qr_api = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={encoded_qr_url}"
         st.image(qr_api, width=120)
 
 st.write("### 2단계: SEA CRET 요원 최종 인증")
@@ -199,7 +218,8 @@ if user_data["is_secret_agent"]:
 else:
     st.markdown(f"**제주지방청 최종장 {'🔓 스캔 가능' if is_jeju_ready else '🔒 잠김'}**")
     jeju_qr_url = f"{base_url}/?scan=jeju_hq"
-    jeju_qr_api = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={jeju_qr_url}"
+    encoded_jeju_url = quote(jeju_qr_url, safe='')
+    jeju_qr_api = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={encoded_jeju_url}"
     st.image(jeju_qr_api, width=120)
 
 st.divider()
